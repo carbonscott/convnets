@@ -22,7 +22,7 @@ from dataclasses import asdict
 
 from .blocks import conv2d, pool2d
 
-from .convnext_config import ConvNeXTStemConfig, ConvNeXTBlockConfig, ConvNeXTStageConfig, ConvNeXTConfig
+from .convnext_config import DepthwiseSeparableConv2dConfig, Conv2dConfig, LayerNormConfig, ConvNeXTStemConfig, ConvNeXTBlockConfig, ConvNeXTStageConfig, ConvNeXTConfig
 
 
 class DepthwiseSeparableConv2d(nn.Module):
@@ -84,21 +84,31 @@ class ConvNeXTStem(nn.Module):
     This class implments the first layer (STEM in RegNet's nomenclature) of
     ConvNeXT.
 
-    Structure:
-    - Conv2d kernel (7, 7)
-    - BatchNorm2d
-    - Activation
-    - MaxPool
+    Spatial dimension change: (1, H, W) -> (C, H//4, W//4)
 
-    Spatial dimension change: (H, W) -> (H//4, W//4)
+    Each patch is turned into a C-dimension vector.
     """
 
     @staticmethod
     def get_default_config():
-        C, H, W = 96, 256, 256
-        layer_norm = LayerNormConfig(normalized_shape = (C, H, W))
+        in_channels  = 1
+        out_channels = 96
+        kernel_size  = 4
+        stride       = 4
+        conv_config = Conv2dConfig(
+            in_channels  = in_channels,
+            out_channels = out_channels,
+            kernel_size  = kernel_size,
+            stride       = stride,
+        )
 
-        return ConvNeXTStemConfig(layer_norm = layer_norm)
+        C, H, W = 96, 256, 256
+        scale_factor = kernel_size
+        H //= scale_factor
+        W //= scale_factor
+        layer_norm_config = LayerNormConfig(normalized_shape = (C, H, W))
+
+        return ConvNeXTStemConfig(layer_norm = layer_norm_config, conv = conv_config)
 
 
     def __init__(self, config = None):
@@ -106,11 +116,8 @@ class ConvNeXTStem(nn.Module):
 
         self.config = ConvNeXTStem.get_default_config() if config is None else config
 
-        self.conv = conv2d(self.config.in_channels,
-                           self.config.out_channels,
-                           kernel_size = self.config.kernel_size,
-                           stride      = self.config.stride,)
-        self.layer_norm = nn.LayerNorm(normalized_shape = self.config.layer_norm.normalized_shape)    # Normalize (1, C, H, W)
+        self.conv       = nn.Conv2d   (**asdict(self.config.conv      ))
+        self.layer_norm = nn.LayerNorm(**asdict(self.config.layer_norm))    # Normalize (1, C, H, W)
 
 
     def forward(self, x):
@@ -131,10 +138,43 @@ class ConvNeXTBlock(nn.Module):
 
     @staticmethod
     def get_default_config():
-        C, H, W = 96, 256, 256
-        layer_norm = LayerNormConfig(normalized_shape = (C, H, W))
+        in_channels  = 96
+        mid_channels = 96 * 4
+        out_channels = 96
 
-        return ConvNeXTBlockConfig(layer_norm = layer_norm)
+        in_kernel_size  = 7
+        mid_kernel_size = 1
+        out_kernel_size = 1
+
+        in_padding  = (in_kernel_size  - 1) // 2
+        mid_padding = (mid_kernel_size - 1) // 2
+        out_padding = (out_kernel_size - 1) // 2
+
+        in_conv_config = DepthwiseSeparableConv2dConfig(in_channels  = in_channels,
+                                                        out_channels = in_channels,
+                                                        kernel_size  = in_kernel_size,
+                                                        padding      = in_padding,)    # ...Keep the spatial dimension unchanged
+
+        mid_conv_config = Conv2dConfig(in_channels  = in_channels,
+                                       out_channels = mid_channels,
+                                       kernel_size  = mid_kernel_size,
+                                       padding      = mid_padding,)
+
+        out_conv_config = Conv2dConfig(in_channels  = mid_channels,
+                                       out_channels = out_channels,
+                                       kernel_size  = out_kernel_size,
+                                       padding      = out_padding,)
+
+        C, H, W = 96, 256, 256
+        scale_factor = 4
+        H //= scale_factor
+        W //= scale_factor
+        layer_norm_config = LayerNormConfig(normalized_shape = (C, H, W))
+
+        return ConvNeXTBlockConfig(in_conv    = in_conv_config,
+                                   mid_conv   = mid_conv_config,
+                                   out_conv   = out_conv_config,
+                                   layer_norm = layer_norm_config)
 
 
     def __init__(self, config = None):
@@ -148,11 +188,11 @@ class ConvNeXTBlock(nn.Module):
         )
 
         self.mid_conv = nn.Sequential(
-            conv2d(**asdict(self.config.mid_conv)),
+            nn.Conv2d(**asdict(self.config.mid_conv)),
             nn.GELU(),
         )
 
-        self.out_conv = conv2d(**asdict(self.config.out_conv))
+        self.out_conv = nn.Conv2d(**asdict(self.config.out_conv))
 
 
     def forward(self, x):
