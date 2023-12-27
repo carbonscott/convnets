@@ -113,7 +113,7 @@ class DepthwiseConv2d(nn.Module):
         return x
 
 
-class PermuteLayerNorm(nn.Module):
+class ChannelwiseLayerNorm(nn.Module):
     def __init__(self, layer_norm_config):
         super().__init__()
 
@@ -150,7 +150,7 @@ class ConvNeXTStem(nn.Module):
         self.config = ConvNeXTStem.get_default_config() if config is None else config
 
         self.conv       = nn.Conv2d   (**asdict(self.config.conv_config))
-        self.layer_norm = PermuteLayerNorm(self.config.layer_norm_config)    # Normalize (1, C, H, W)
+        self.layer_norm = ChannelwiseLayerNorm(self.config.layer_norm_config)    # Normalize (1, C, H, W)
 
 
     def forward(self, x):
@@ -176,7 +176,7 @@ class ConvNeXTBlock(nn.Module):
 
         self.in_conv = nn.Sequential(
             DepthwiseSeparableConv2d(**asdict(self.config.in_conv_config)),    # ...Keep the spatial dimension unchanged
-            PermuteLayerNorm(self.config.layer_norm_config),
+            ChannelwiseLayerNorm(self.config.layer_norm_config),
         )
 
         self.mid_conv = nn.Sequential(
@@ -234,7 +234,7 @@ class ConvNeXTStageJoint(nn.Module):
 
         self.stage_joint = nn.Sequential(
             nn.Conv2d(**asdict(self.config.conv_config)),
-            PermuteLayerNorm(self.config.layer_norm_config),
+            ChannelwiseLayerNorm(self.config.layer_norm_config),
         )
 
 
