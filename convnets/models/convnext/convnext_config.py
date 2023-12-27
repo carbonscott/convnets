@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from typing      import Optional, List
 
 import torch
+import torch.nn as nn
 
 
 @dataclass
@@ -159,21 +160,42 @@ class ConvNeXTStageConfig:
         ]
 
 
+@dataclass
+class ConvNextStageJointConfig:
+    in_channels : int
+    out_channels: int
+
+    conv_config      : Conv2dConfig    = field(init = False)
+    layer_norm_config: LayerNormConfig = field(init = False)
+
+    def __post_init__(self):
+        in_channels  = self.in_channels
+        out_channels = self.out_channels
+        kernel_size  = 2
+        stride       = 2
+        self.conv_config = Conv2dConfig(in_channels  = in_channels,
+                                        out_channels = out_channels,
+                                        kernel_size  = kernel_size,
+                                        stride       = stride,)
+
+        self.layer_norm_config = LayerNormConfig(normalized_shape = out_channels)
+
 
 @dataclass
 class ConvNeXTConfig:
     stem_in_channels : int = 1
     stem_out_channels: int = 96
 
-    stage_in_channels_list    : List[int] = field(default_factory = lambda: [96, 96, 96, 96])
-    stage_out_channels_list   : List[int] = field(default_factory = lambda: [96, 96, 96, 96])
+    stage_in_channels_list    : List[int] = field(default_factory = lambda: [96    , 96 * 2, 96 * 4 , 96 * 8 ])
+    mid_conv_out_channels_list: List[int] = field(default_factory = lambda: [96 * 4, 96 * 8, 96 * 16, 96 * 32])
+    stage_out_channels_list   : List[int] = field(default_factory = lambda: [96    , 96 * 2, 96 * 4 , 96 * 8 ])
     num_blocks_list           : List[int] = field(default_factory = lambda: [3,  3,  9,  3 ])
-    mid_conv_out_channels_list: List[int] = field(default_factory = lambda: [96, 96, 96, 96])
     in_conv_stride_list       : List[int] = field(default_factory = lambda: [1,  1,  1,  1 ])
     mid_conv_stride_list      : List[int] = field(default_factory = lambda: [1,  1,  1,  1 ])
 
-    stem_config  : ConvNeXTStemConfig        = field(init = False)
-    stages_config: List[ConvNeXTStageConfig] = field(init = False)
+    stem_config        : ConvNeXTStemConfig             = field(init = False)
+    stages_config      : List[ConvNeXTStageConfig]      = field(init = False)
+    stage_joints_config: List[ConvNextStageJointConfig] = field(init = False)
 
     def __post_init__(self):
         self.stem_config = ConvNeXTStemConfig(
@@ -190,6 +212,15 @@ class ConvNeXTConfig:
                 mid_conv_out_channels = self.mid_conv_out_channels_list[stage_idx],
                 in_conv_stride        = self.in_conv_stride_list       [stage_idx],
                 mid_conv_stride       = self.mid_conv_stride_list      [stage_idx],
+            )
+            for stage_idx in range(num_stages)
+        ]
+
+        self.stage_joints_config = [
+            None if stage_idx == 0 else
+            ConvNextStageJointConfig(
+                in_channels  = self.stage_out_channels_list[stage_idx - 1],    # Out channel of the stage before the joint
+                out_channels = self.stage_in_channels_list [stage_idx],        # In channel of the stage after the joint
             )
             for stage_idx in range(num_stages)
         ]
