@@ -142,11 +142,11 @@ class ConvNeXTStageConfig:
         self.block_config_list = [
             ConvNeXTBlockConfig(
                 # First block uses stage_in_channels and rest uses prev stage_out_channels...
-                in_conv_in_channels  = self.stage_in_channels if block_idx == 0 else self.stage_out_channels,
+                in_conv_in_channels = self.stage_in_channels if block_idx == 0 else self.stage_out_channels,
 
                 # First block uses in_conv_stride and rest uses 1...
-                in_conv_stride     = self.in_conv_stride    if block_idx == 0 else 1,
-                mid_conv_stride    = self.mid_conv_stride   if block_idx == 0 else 1,
+                in_conv_stride  = self.in_conv_stride  if block_idx == 0 else 1,
+                mid_conv_stride = self.mid_conv_stride if block_idx == 0 else 1,
 
                 mid_conv_out_channels = self.mid_conv_out_channels,
                 out_conv_out_channels = self.stage_out_channels,
@@ -167,15 +167,15 @@ class ConvNeXTConfig:
     H: int = 256
     W: int = 256
 
-    stage_in_channels_in_layer    : List[int] = field(default_factory = lambda: [96, 96, 96, 96])
-    stage_out_channels_in_layer   : List[int] = field(default_factory = lambda: [96, 96, 96, 96])
-    num_blocks_in_layer           : List[int] = field(default_factory = lambda: [3,  3,  9,  3 ])
-    mid_conv_out_channels_in_layer: List[int] = field(default_factory = lambda: [96, 96, 96, 96])
-    in_conv_stride_in_layer       : List[int] = field(default_factory = lambda: [1,  1,  1,  1 ])
-    mid_conv_stride_in_layer      : List[int] = field(default_factory = lambda: [1,  1,  1,  1 ])
+    stage_in_channels_list    : List[int] = field(default_factory = lambda: [96, 96, 96, 96])
+    stage_out_channels_list   : List[int] = field(default_factory = lambda: [96, 96, 96, 96])
+    num_blocks_list           : List[int] = field(default_factory = lambda: [3,  3,  9,  3 ])
+    mid_conv_out_channels_list: List[int] = field(default_factory = lambda: [96, 96, 96, 96])
+    in_conv_stride_list       : List[int] = field(default_factory = lambda: [1,  1,  1,  1 ])
+    mid_conv_stride_list      : List[int] = field(default_factory = lambda: [1,  1,  1,  1 ])
 
     stem_config  : ConvNeXTStemConfig = field(init = False)
-    layers_config: List[ConvNeXTStageConfig] = field(init = False)
+    stages_config: List[ConvNeXTStageConfig] = field(init = False)
 
     def __post_init__(self):
         self.stem_config = ConvNeXTStemConfig(
@@ -187,17 +187,17 @@ class ConvNeXTConfig:
 
         H_scaled = self.stem_config.H_scaled
         W_scaled = self.stem_config.W_scaled
-        num_layers = len(self.stage_in_channels_in_layer)
-        self.layers_config = [
+        num_stages = len(self.stage_in_channels_list)
+        self.stages_config = [
             ConvNeXTStageConfig(
-                stage_in_channels     = self.stage_in_channels_in_layer    [layer_idx],
-                stage_out_channels    = self.stage_out_channels_in_layer   [layer_idx],
-                num_blocks            = self.num_blocks_in_layer           [layer_idx],
-                mid_conv_out_channels = self.mid_conv_out_channels_in_layer[layer_idx],
-                in_conv_stride        = self.in_conv_stride_in_layer       [layer_idx],
-                mid_conv_stride       = self.mid_conv_stride_in_layer      [layer_idx],
+                stage_in_channels     = self.stage_in_channels_list    [stage_idx],
+                stage_out_channels    = self.stage_out_channels_list   [stage_idx],
+                num_blocks            = self.num_blocks_list           [stage_idx],
+                mid_conv_out_channels = self.mid_conv_out_channels_list[stage_idx],
+                in_conv_stride        = self.in_conv_stride_list       [stage_idx],
+                mid_conv_stride       = self.mid_conv_stride_list      [stage_idx],
                 H = H_scaled,
                 W = H_scaled,
             )
-            for layer_idx in range(num_layers)
+            for stage_idx in range(num_stages)
         ]

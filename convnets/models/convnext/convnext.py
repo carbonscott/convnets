@@ -205,15 +205,15 @@ class ConvNeXT(nn.Module):
 
         self.stem = ConvNeXTStem(self.config.stem_config)
 
-        self.layers = nn.Sequential(*[
+        self.stages = nn.Sequential(*[
             ConvNeXTStage(config = stage_config)
-            for stage_config in self.config.layers_config
+            for stage_config in self.config.stages_config
         ])
 
 
 
     def forward(self, x):
         x = self.stem(x)
-        x = self.layers(x)
+        x = self.stages(x)
 
         return x
