@@ -233,8 +233,8 @@ class ConvNeXTStageJoint(nn.Module):
         self.config = config
 
         self.stage_joint = nn.Sequential(
-            nn.Conv2d(**asdict(self.config.conv_config)),
             ChannelwiseLayerNorm(self.config.layer_norm_config),
+            nn.Conv2d(**asdict(self.config.conv_config)),
         )
 
 
