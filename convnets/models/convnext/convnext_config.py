@@ -49,6 +49,15 @@ class Conv2dConfig:
 
 
 @dataclass
+class LinearConfig:
+    in_features : int
+    out_features: int
+    bias        : bool = True
+    device      : Optional[torch.device] = None
+    dtype       : Optional[torch.dtype]  = None
+
+
+@dataclass
 class LayerNormConfig:
     normalized_shape  : int
     eps               : float = 1e-6
@@ -92,8 +101,8 @@ class ConvNeXTBlockConfig:
 
     in_conv_config   : DepthwiseConv2dConfig = field(init = False)
     layer_norm_config: LayerNormConfig       = field(init = False)
-    mid_conv_config  : Conv2dConfig          = field(init = False)
-    out_conv_config  : Conv2dConfig          = field(init = False)
+    mid_linear_config: LinearConfig          = field(init = False)
+    out_linear_config: LinearConfig          = field(init = False)
 
     def __post_init__(self):
         in_conv_in_channels   = self.in_conv_in_channels
@@ -113,15 +122,11 @@ class ConvNeXTBlockConfig:
                                                     kernel_size  = in_conv_kernel_size,
                                                     padding      = in_conv_padding,)    # ...Keep the spatial dimension unchanged
 
-        self.mid_conv_config = Conv2dConfig(in_channels  = in_conv_in_channels,
-                                            out_channels = mid_conv_out_channels,
-                                            kernel_size  = mid_conv_kernel_size,
-                                            padding      = mid_conv_padding,)
+        self.mid_linear_config = LinearConfig(in_features  = in_conv_in_channels,
+                                              out_features = mid_conv_out_channels,)
 
-        self.out_conv_config = Conv2dConfig(in_channels  = mid_conv_out_channels,
-                                            out_channels = out_conv_out_channels,
-                                            kernel_size  = out_conv_kernel_size,
-                                            padding      = out_conv_padding,)
+        self.out_linear_config = LinearConfig(in_features  = mid_conv_out_channels,
+                                              out_features = out_conv_out_channels,)
 
         self.layer_norm_config = LayerNormConfig(normalized_shape = in_conv_in_channels)
 

@@ -166,7 +166,7 @@ class ConvNeXTBlock(nn.Module):
     """
     Create X blocks for the RegNet architecture.
 
-    in_channels, mid_channels (bottleneck channels), out_channels
+    in_channels, mid_channels (inverted bottleneck channels), out_channels
     """
 
     def __init__(self, config):
@@ -174,23 +174,24 @@ class ConvNeXTBlock(nn.Module):
 
         self.config = config
 
-        self.in_conv = nn.Sequential(
-            DepthwiseSeparableConv2d(**asdict(self.config.in_conv_config)),    # ...Keep the spatial dimension unchanged
-            ChannelwiseLayerNorm(self.config.layer_norm_config),
-        )
+        self.in_conv    = DepthwiseConv2d(**asdict(self.config.in_conv_config))    # ...Keep the spatial dimension unchanged
+        self.layer_norm = nn.LayerNorm(**asdict(self.config.layer_norm_config))
 
-        self.mid_conv = nn.Sequential(
-            nn.Conv2d(**asdict(self.config.mid_conv_config)),
+        self.mid_linear = nn.Sequential(
+            nn.Linear(**asdict(self.config.mid_linear_config)),
             nn.GELU(),
         )
 
-        self.out_conv = nn.Conv2d(**asdict(self.config.out_conv_config))
+        self.out_linear = nn.Linear(**asdict(self.config.out_linear_config))
 
 
     def forward(self, x):
         y = self.in_conv(x)
-        y = self.mid_conv(y)
-        y = self.out_conv(y)
+        y = y.permute(0, 2, 3, 1)
+        y = self.layer_norm(y)
+        y = self.mid_linear(y)
+        y = self.out_linear(y)
+        y = y.permute(0, 3, 1, 2)
 
         y = y + x
 
